@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-dark font-sans antialiased selection:bg-brand-indigo/10 selection:text-brand-indigo;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
+      radial-gradient(at 50% 0%, rgba(6, 182, 212, 0.03) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+}
+
+/* Reusable Design System Classes (Calibration 1 & 7) */
+.premium-card {
+  @apply bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5;
+}
+
+.dropzone-container {
+  @apply border-2 border-dashed border-slate-200 bg-white hover:border-brand-indigo/40 hover:shadow-lg hover:shadow-brand-indigo/5 transition-all duration-300 rounded-3xl cursor-pointer;
+}
+
+.premium-button {
+  @apply bg-brand-indigo text-white font-medium px-6 py-3 rounded-2xl shadow-sm hover:bg-brand-indigo/95 active:scale-98 transition-all duration-200;
+}
+
+/* Staggered entrance animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes loadingGlow {
+  0% {
+    left: -35%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.animate-loading-glow {
+  animation: loadingGlow 1.4s infinite ease-in-out;
+}
+
