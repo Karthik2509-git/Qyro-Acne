@@ -1,0 +1,34 @@
+# Datasets
+datasets/
+
+# Evaluation Outputs
+evaluation/raw_images/
+evaluation/predictions/
+evaluation/failure_cases/
+evaluation/strong_cases/
+evaluation/*.csv
+
+# YOLO Outputs
+runs/
+logs/
+*.log
+
+# Model Weights
+*.pt
+*.pth
+models/
+
+# Python / Temp
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Temporary files
+.tmp/
+.temp/
+
+.vscode/
