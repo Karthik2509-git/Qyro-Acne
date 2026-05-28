@@ -7,6 +7,8 @@ evaluation/predictions/
 evaluation/failure_cases/
 evaluation/strong_cases/
 evaluation/*.csv
+evaluation/*.json
+
 
 # YOLO Outputs
 runs/
