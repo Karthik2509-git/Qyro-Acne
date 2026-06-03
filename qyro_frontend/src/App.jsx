@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, BarChart, Heart, Stethoscope, ChevronDown, Check, HelpCircle, ShieldCheck, Video } from 'lucide-react';
+import { Sparkles, BarChart, Heart, Stethoscope, ChevronDown, Check, HelpCircle, ShieldCheck, Video, Apple, Ban, Activity, Camera, Upload } from 'lucide-react';
 import { API_URL } from './config/api';
 import Dropzone from './components/Dropzone';
 import ProgressSequencer from './components/ProgressSequencer';
@@ -7,6 +7,7 @@ import ResultCard from './components/ResultCard';
 import MetricMeter from './components/MetricMeter';
 import SafeErrorPopup from './components/SafeErrorPopup';
 import TelehealthModal from './components/TelehealthModal';
+import LiveCamera from './components/LiveCamera';
 
 export default function App() {
   const [view, setView] = useState('landing'); // 'landing', 'loading', 'results'
@@ -15,6 +16,7 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState(null);
   const [analysisData, setAnalysisData] = useState(null);
   const [showTelehealth, setShowTelehealth] = useState(false);
+  const [activeTab, setActiveTab] = useState('upload'); // 'upload' or 'camera'
 
   const handleFileSelected = async (file) => {
     setSelectedFile(file);
@@ -75,23 +77,27 @@ export default function App() {
         "processing_time_ms": 1240,
         "clinical_report": {
           "acne_detected": true,
-          "severity": "Moderate",
-          "analysis_confidence": "Medium",
+          "severity": "Stage 2",
+          "analysis_confidence": "Moderate confidence",
           "pattern_analysis": [
             "Pattern analysis suggests:",
-            "• Predominantly Papular characteristics",
-            "• Possible Whitehead tendency"
+            "• Mild inflammatory acne characteristics may be observed.",
+            "• Secondary: Mixed inflammatory characteristics observed."
           ],
           "skin_guidance": [
             "General wellness focus:",
-            "• anti-inflammatory nutrition",
-            "• hydration",
-            "• barrier-safe skincare"
+            "• mild inflammatory control",
+            "• skin barrier protection",
+            "• gentle soothing skincare",
+            "• minimizing skin friction"
           ],
           "consultation": [
-            "• Monitor weekly.",
-            "• Consider professional consultation if inflammation persists."
-          ]
+            "• Consider standard routine adjustments and professional consultation if inflammatory patterns persist.",
+            "• This wellness guidance is educational and should not replace professional dermatological consultation."
+          ],
+          "nutrition_nutrients": ["Omega-3 fatty acids", "Zinc", "Vitamin C", "Antioxidants", "Green tea catechins"],
+          "nutrition_eat_more": ["consider increasing berries", "consider increasing spinach", "consider increasing turmeric-infused meals", "consider increasing flaxseeds", "consider increasing green tea"],
+          "nutrition_reduce": ["excessive highly spicy processed foods", "refined sugars", "oily fast foods"]
         },
         "technical_summary": {
           "detected_lesions": 5,
@@ -112,20 +118,26 @@ export default function App() {
         "processing_time_ms": 642,
         "clinical_report": {
           "acne_detected": false,
-          "severity": "Minimal",
-          "analysis_confidence": "Low",
+          "severity": "Stage 0",
+          "analysis_confidence": "High confidence stage assignment",
           "pattern_analysis": [
-            "Subtle skin textures may be present."
+            "Skin appears generally under control.",
+            "• No significant active acne characteristics observed.",
+            "• Maintain a consistent, gentle daily cleansing routine."
           ],
           "skin_guidance": [
             "General wellness focus:",
-            "• hydration",
+            "• consistent hydration",
             "• barrier-friendly skincare",
-            "• consistent skincare habits"
+            "• consistent cleansing habits"
           ],
           "consultation": [
-            "• Continue maintaining healthy skincare habits."
-          ]
+            "• Maintain healthy, consistent skincare habits.",
+            "• This wellness guidance is educational and should not replace professional dermatological consultation."
+          ],
+          "nutrition_nutrients": ["Vitamins A, C, E", "Zinc", "Water-soluble Fiber"],
+          "nutrition_eat_more": ["consider increasing leafy greens", "consider increasing antioxidant-rich fruits", "consider increasing water-rich foods"],
+          "nutrition_reduce": ["excessive refined sugar", "excessive ultra-processed foods"]
         },
         "technical_summary": {
           "detected_lesions": 2,
@@ -177,9 +189,39 @@ export default function App() {
               </p>
             </div>
 
-            {/* Luxurious upload zone (Calibration 2) */}
+            {/* Premium Tabs to switch Upload vs Live Scan */}
+            <div className="flex justify-center gap-3 max-w-xs mx-auto mb-6">
+              <button
+                onClick={() => setActiveTab('upload')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold border transition-all duration-300 cursor-pointer ${
+                  activeTab === 'upload'
+                    ? 'bg-brand-indigo text-white border-brand-indigo shadow-md shadow-brand-indigo/15 scale-[1.02]'
+                    : 'bg-white text-slate-500 border-slate-200/60 hover:border-slate-300/80 hover:text-slate-700'
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Upload Photo
+              </button>
+              <button
+                onClick={() => setActiveTab('camera')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold border transition-all duration-300 cursor-pointer ${
+                  activeTab === 'camera'
+                    ? 'bg-brand-indigo text-white border-brand-indigo shadow-md shadow-brand-indigo/15 scale-[1.02]'
+                    : 'bg-white text-slate-500 border-slate-200/60 hover:border-slate-300/80 hover:text-slate-700'
+                }`}
+              >
+                <Camera className="w-3.5 h-3.5" />
+                Take Live Scan
+              </button>
+            </div>
+
+            {/* Luxurious upload zone / Live Camera capture */}
             <div className="w-full max-w-lg mx-auto">
-              <Dropzone onFileSelected={handleFileSelected} />
+              {activeTab === 'upload' ? (
+                <Dropzone onFileSelected={handleFileSelected} />
+              ) : (
+                <LiveCamera onFileSelected={handleFileSelected} />
+              )}
             </div>
             
             {/* Mock Trigger controls for validation & testing */}
@@ -210,7 +252,7 @@ export default function App() {
         {/* VIEW 2: LOADING PROGRESS */}
         {view === 'loading' && (
           <div className="bg-white border border-slate-100 rounded-3xl shadow-sm p-6 max-w-md w-full mx-auto animate-fade-in-up">
-            <ProgressSequencer onComplete={handleLoadingComplete} />
+            <ProgressSequencer onComplete={() => {}} />
           </div>
         )}
 
@@ -299,7 +341,7 @@ export default function App() {
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-1">
                   {analysisData.clinical_report.skin_guidance.slice(1).map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2.5 bg-slate-50 border border-slate-100/50 p-3 rounded-2xl text-slate-700 text-sm hover:shadow-sm transition-shadow">
+                    <div key={idx} className="flex items-center gap-2.5 bg-slate-50/50 border border-slate-200/40 p-3 rounded-2xl text-slate-700 text-sm hover:shadow-sm transition-all duration-300">
                       <div className="w-5 h-5 rounded-full bg-brand-indigo/10 flex items-center justify-center text-brand-indigo flex-shrink-0">
                         <Check className="w-3.5 h-3.5" />
                       </div>
@@ -310,8 +352,61 @@ export default function App() {
               </div>
             </ResultCard>
 
+            {/* 4.5. Nutrition Engine Dashboard Cards */}
+            {analysisData.clinical_report.nutrition_nutrients && (
+              <div className="flex flex-col gap-6 border-t border-slate-100/50 pt-5 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-brand-indigo bg-brand-indigo/5 border border-brand-indigo/10 px-3.5 py-1.5 rounded-full uppercase tracking-wider">
+                    Clinical Nutrition & Wellness Guidance
+                  </span>
+                </div>
+                
+                {/* Nutrients Card */}
+                <ResultCard title="Nutrients Your Skin May Need" icon={Activity} delayClass="delay-225">
+                  <div className="flex flex-wrap gap-2.5 pt-1">
+                    {analysisData.clinical_report.nutrition_nutrients.map((nutrient, idx) => (
+                      <span 
+                        key={idx} 
+                        className="px-4 py-2 bg-indigo-50/70 text-indigo-700 font-semibold text-xs rounded-2xl border border-indigo-100 hover:scale-105 hover:bg-indigo-50 hover:shadow-md transition-all duration-200 cursor-default shadow-sm"
+                      >
+                        {nutrient}
+                      </span>
+                    ))}
+                  </div>
+                </ResultCard>
+
+                {/* Foods to Eat More */}
+                <ResultCard title="Foods to Eat More" icon={Apple} delayClass="delay-250">
+                  <div className="flex flex-wrap gap-2.5 pt-1">
+                    {analysisData.clinical_report.nutrition_eat_more.map((food, idx) => (
+                      <span 
+                        key={idx} 
+                        className="px-4 py-2 bg-emerald-50/70 text-emerald-700 font-semibold text-xs rounded-2xl border border-emerald-100 hover:scale-105 hover:bg-emerald-50 hover:shadow-md transition-all duration-200 cursor-default shadow-sm capitalize"
+                      >
+                        {food}
+                      </span>
+                    ))}
+                  </div>
+                </ResultCard>
+
+                {/* Foods to Reduce */}
+                <ResultCard title="Foods to Reduce/Avoid" icon={Ban} delayClass="delay-275">
+                  <div className="flex flex-wrap gap-2.5 pt-1">
+                    {analysisData.clinical_report.nutrition_reduce.map((food, idx) => (
+                      <span 
+                        key={idx} 
+                        className="px-4 py-2 bg-rose-50/70 text-rose-700 font-semibold text-xs rounded-2xl border border-rose-100 hover:scale-105 hover:bg-rose-50 hover:shadow-md transition-all duration-200 cursor-default shadow-sm capitalize"
+                      >
+                        {food}
+                      </span>
+                    ))}
+                  </div>
+                </ResultCard>
+              </div>
+            )}
+
             {/* 5. Consultation Card */}
-            <ResultCard title="Consultation Triage" icon={Stethoscope} delayClass="delay-250">
+            <ResultCard title="Consultation Triage" icon={Stethoscope} delayClass="delay-300">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-3">
                   {analysisData.clinical_report.consultation.map((bullet, idx) => (
@@ -326,7 +421,7 @@ export default function App() {
                 <div className="pt-3 border-t border-slate-50 mt-1">
                   <button 
                     onClick={() => setShowTelehealth(true)}
-                    className="w-full flex items-center justify-center gap-2 bg-slate-50 hover:bg-brand-indigo/5 text-brand-indigo font-semibold text-sm py-3 rounded-xl transition-colors border border-slate-100 hover:border-brand-indigo/20"
+                    className="w-full flex items-center justify-center gap-2 bg-slate-50 hover:bg-brand-indigo/5 text-brand-indigo font-semibold text-sm py-3 rounded-xl transition-all duration-300 border border-slate-100 hover:border-brand-indigo/20 shadow-sm"
                   >
                     <Video className="w-4 h-4" />
                     Book Virtual Consultation

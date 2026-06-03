@@ -89,6 +89,10 @@ async def analyze_photo(image: UploadFile = File(...)):
     # Extract clinical outcomes
     acne_detected = inference_result.get("acne_detected", False)
     
+    nutrition_nutrients = inference_result.get("nutrition_nutrients", [])
+    nutrition_eat_more = inference_result.get("nutrition_eat_more", [])
+    nutrition_reduce = inference_result.get("nutrition_reduce", [])
+    
     if acne_detected:
         severity = inference_result.get("severity_metrics", {}).get("severity_label", "Mild")
         pattern_analysis = inference_result.get("user_facing_flow", {}).get("step_3_pattern_analysis", [])
@@ -120,7 +124,10 @@ async def analyze_photo(image: UploadFile = File(...)):
             "analysis_confidence": inference_result.get("confidence_level", "High"),
             "pattern_analysis": pattern_analysis,
             "skin_guidance": skin_guidance,
-            "consultation": consultation
+            "consultation": consultation,
+            "nutrition_nutrients": nutrition_nutrients,
+            "nutrition_eat_more": nutrition_eat_more,
+            "nutrition_reduce": nutrition_reduce
         },
         "technical_summary": {
             "detected_lesions": detected_lesions,

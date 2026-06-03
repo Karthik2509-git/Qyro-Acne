@@ -128,217 +128,268 @@ def process_clinical_inference(detections):
         
     final_severity_score = float(round(base_severity * area_multiplier, 1))
     
-    # Upgraded Severity Labels & Thresholds (Patch 2)
-    if final_severity_score <= 6.0:
-        severity_label = "Mild"
-        severity_reason = "Minimal non-inflammatory or early-stage lesions observed on the skin surface."
-    elif final_severity_score <= 15.0:
-        severity_label = "Moderate"
-        severity_reason = "Moderate mix of non-inflammatory and inflammatory lesions observed, showing visible spread."
-    else:
-        severity_label = "Severe"
-        severity_reason = "Widespread distribution of active, deep, or highly inflammatory characteristics."
-        
     # ----------------------------------------------------
-    # PATCH 1 & 5 — ACNE CERTAINTY GATE & REASSURANCE PATH
+    # REFINEMENT 4 — CLOSE-UP NOSE SAFEGUARD
+    # ----------------------------------------------------
+    # If multiple blackhead detections cluster or dense comedonal pattern exists, 
+    # we bypass reassurance to avoid missing nose blackheads in macro closeups.
+    is_comedonal_cluster = (class_counts[0] >= 2) or (class_counts[0] + class_counts[1] >= 2)
+    
+    # ----------------------------------------------------
+    # REFINEMENT 1 — STAGE 0 (MINIMAL / CLEAR SKIN) REASSURANCE PATH
     # ----------------------------------------------------
     is_reassurance_triggered = False
-    if total_detections == 0 or (highest_conf < 0.35 and final_severity_score <= 6.0 and total_detections <= 2):
+    if total_detections == 0 or (highest_conf < 0.35 and final_severity_score <= 6.0 and total_detections <= 2 and not is_comedonal_cluster):
         is_reassurance_triggered = True
+        
+        # Refinement 7 - Reasoning confidence level
+        confidence_level = "High confidence stage assignment" if total_detections == 0 else "Low confidence / ambiguous"
+        
         return {
             "acne_detected": False,
             "severity_metrics": {
                 "severity_score": final_severity_score if total_detections > 0 else 0.0,
-                "severity_label": "Minimal",
-                "severity_reasoning": "Skin appears clear or generally under control with no significant active lesions."
+                "severity_label": "Stage 0",
+                "severity_reasoning": "Skin appears generally under control."
             },
-            "confidence_level": "High" if total_detections == 0 else "Low",
+            "confidence_level": confidence_level,
             "possible_patterns": [
-                "Skin appears clear or generally under control."
+                "Skin appears generally under control."
             ],
             "lesion_summary": {CLASS_NAMES[i].lower(): class_counts[i] for i in range(5)},
             "wellness_guidance": {
-                "nutrition_focus": ["General Wellness Focus", "Hydration"],
+                "nutrition_focus": ["General Wellness Focus", "Hydration Support"],
                 "diet_guidance": {
-                    "increase": ["Hydrating foods", "Balanced vitamins"],
-                    "reduce": ["Excess processed foods"]
+                    "increase": ["consider increasing hydrating greens", "consider increasing water-rich fruits"],
+                    "reduce": ["excessive refined sugar", "excessive processed foods"]
                 },
-                "skincare_focus": "Maintain your regular gentle skin cleansing routine."
+                "skincare_focus": "Maintain consistent, barrier-friendly skincare habits."
             },
+            "nutrition_nutrients": ["Vitamins A, C, E", "Zinc", "Water-soluble Fiber"],
+            "nutrition_eat_more": ["consider increasing leafy greens", "consider increasing antioxidant-rich fruits", "consider increasing water-rich foods"],
+            "nutrition_reduce": ["excessive refined sugar", "excessive ultra-processed foods"],
             "triage_recommendation": {
                 "consultation_level": "Self-Care Guidance",
-                "wording": "Continue maintaining healthy skincare habits."
+                "wording": "Maintain healthy, consistent skincare habits."
             },
             "user_facing_flow": {
-                "step_1_detection": "Skin appears clear or generally under control.",
-                "step_2_severity": "Minimal",
-                "step_3_pattern_analysis": "Subtle skin textures may be present.",
+                "step_1_detection": "Skin appears generally under control.",
+                "step_2_severity": "Stage 0",
+                "step_3_pattern_analysis": [
+                    "Skin appears generally under control.",
+                    "• No significant active acne characteristics observed.",
+                    "• Maintain a consistent, gentle daily cleansing routine."
+                ],
                 "step_4_skin_guidance": [
                     "General wellness focus:",
-                    "• hydration",
+                    "• consistent hydration",
                     "• barrier-friendly skincare",
-                    "• consistent skincare habits"
+                    "• consistent cleansing habits"
                 ],
                 "step_5_consultation": [
-                    "• Continue maintaining healthy skincare habits."
+                    "• Maintain healthy skincare habits.",
+                    "• This wellness guidance is educational and should not replace professional dermatological consultation."
                 ]
             }
         }
         
     # ----------------------------------------------------
-    # ACTIVE INFERENCE LOGIC (Acne Detected Path)
+    # ACTIVE INFERENCE LOGIC (Acne Detected Path: Stages 1-4)
     # ----------------------------------------------------
-    # Patch 5 - Confidence Level Logic
+    # Refinement 7 - Reasoning Confidence Level Mapping
     if highest_conf >= 0.60:
-        confidence_level = "High"
+        confidence_level = "High confidence stage assignment"
+        pattern_prefix = "Observed characteristics align with:"
     elif highest_conf >= 0.35:
-        confidence_level = "Medium"
+        confidence_level = "Moderate confidence"
+        pattern_prefix = "Pattern analysis suggests:"
     else:
-        confidence_level = "Low"
+        confidence_level = "Low confidence / ambiguous"
+        pattern_prefix = "May show characteristics of:"
         
-    # Determine dominant & secondary active classes sorted by count desc, then peak confidence desc
-    active_classes = []
+    # Calculate Subclass Weighted Scoring
+    subclass_scores = {}
     for i in range(5):
         count = class_counts[i]
         if count > 0:
-            peak_conf = max(class_confidences[i])
-            active_classes.append((i, count, peak_conf))
-    active_classes.sort(key=lambda x: (x[1], x[2]), reverse=True)
-    
-    top_cls = active_classes[0][0]
-    top_conf = active_classes[0][2]
-    sec_cls = active_classes[1][0] if len(active_classes) >= 2 else None
-    sec_conf = active_classes[1][2] if len(active_classes) >= 2 else 0.0
-    
-    # 2. Uncertainty & Contradiction Handling (Dominant Confidence Wins)
-    possible_patterns = []
-    if sec_cls is not None:
-        # Dominant rule: Is top class >25% stronger than the second class?
-        if top_conf >= 1.25 * sec_conf:
-            possible_patterns.append(
-                f"Pattern analysis suggests: Predominantly {CLASS_NAMES[top_cls]} characteristics "
-                f"with mild {CLASS_NAMES[sec_cls].lower()} tendency."
-            )
+            mean_conf = np.mean(class_confidences[i])
+            subclass_scores[i] = count * mean_conf * SEVERITY_WEIGHTS[i]
         else:
-            possible_patterns.append(
-                f"Pattern analysis suggests: Co-dominant {CLASS_NAMES[top_cls]} and "
-                f"{CLASS_NAMES[sec_cls].lower()} characteristics."
-            )
-    else:
-        possible_patterns.append(f"Pattern analysis suggests: Predominantly {CLASS_NAMES[top_cls]} characteristics.")
-        
-    # ----------------------------------------------------
-    # PATCH 3 — SMART GUIDANCE VARIATION ENGINE
-    # ----------------------------------------------------
-    GUIDANCE_FOCUS = {
-        0: ["oil balance", "gentle pore care", "hydration"],                             # Blackhead
-        1: ["gentle exfoliation awareness", "hydration", "pore maintenance"],             # Whitehead
-        2: ["anti-inflammatory nutrition", "skin barrier support", "gentle skincare"],    # Papular
-        3: ["inflammation calming", "avoid irritation", "skin barrier repair"],          # Purulent
-        4: ["avoid irritation", "anti-inflammatory focus", "dermatologist consultation awareness"] # Cystic
-    }
-    
-    # Blend top 2 dominant classes for step_4_skin_guidance
-    blended_items = []
-    top_items = GUIDANCE_FOCUS[top_cls]
-    sec_items = GUIDANCE_FOCUS[sec_cls] if sec_cls is not None else []
-    
-    for i in range(max(len(top_items), len(sec_items))):
-        if i < len(top_items) and top_items[i] not in blended_items:
-            blended_items.append(top_items[i])
-        if i < len(sec_items) and sec_items[i] not in blended_items:
-            blended_items.append(sec_items[i])
+            subclass_scores[i] = 0.0
             
-    # Format Step 4 guidance bullets
-    step_4_bullets = ["General wellness focus:"]
-    for item in blended_items[:5]:
-        step_4_bullets.append(f"• {item}")
-        
-    # Outer wellness guidance elements
-    # 1. Base Nutrition Focus Name (Generalized by Burden)
-    inflammatory_count = class_counts[2] + class_counts[3] + class_counts[4]
-    if inflammatory_count <= 2 and severity_label == "Mild":
-        nutrition_label = "Vitamin Balance & Hydration"
-    elif inflammatory_count <= 5 or severity_label == "Moderate":
-        nutrition_label = "Moderate Inflammatory Support"
+    active_classes_by_score = [(i, class_counts[i], max(class_confidences[i]), subclass_scores[i]) for i in range(5) if class_counts[i] > 0]
+    active_classes_by_score.sort(key=lambda x: x[3], reverse=True)
+    
+    top_cls = active_classes_by_score[0][0]
+    top_conf = active_classes_by_score[0][2]
+    top_score = active_classes_by_score[0][3]
+    
+    if len(active_classes_by_score) >= 2:
+        sec_cls = active_classes_by_score[1][0]
+        sec_conf = active_classes_by_score[1][2]
+        second_score = active_classes_by_score[1][3]
     else:
-        nutrition_label = "Anti-inflammatory Diet Emphasis"
+        sec_cls = None
+        sec_conf = 0.0
+        second_score = 0.0
         
-    nutrition_focus = [nutrition_label, f"Focus: {GUIDANCE_FOCUS[top_cls][0].capitalize()}"]
-    if sec_cls is not None:
-        nutrition_focus.append(f"Secondary: {GUIDANCE_FOCUS[sec_cls][0].capitalize()}")
+    # ----------------------------------------------------
+    # REFINEMENT 3 — DOMINANCE THRESHOLD & MIXED PATTERN
+    # ----------------------------------------------------
+    is_mixed_pattern = (sec_cls is not None) and (top_score < second_score * 1.15)
+    
+    # ----------------------------------------------------
+    # WEIGHTED STAGE DETERMINATION (Phases 13A, 13B & Refinement 2)
+    # ----------------------------------------------------
+    cystic_count = class_counts[4]
+    cystic_peak_conf = max(class_confidences[4]) if cystic_count > 0 else 0.0
+    purulent_count = class_counts[3]
+    purulent_peak_conf = max(class_confidences[3]) if purulent_count > 0 else 0.0
+    papular_count = class_counts[2]
+    
+    total_inflammatory = papular_count + purulent_count + cystic_count
+    
+    # Robust Stage 4 Trigger: Cystic dominant AND significant activity
+    is_cystic_heavy = (cystic_count >= 2) or (cystic_peak_conf >= 0.50) or (total_inflammatory >= 3)
+    is_cystic_dominant = (top_cls == 4) and is_cystic_heavy
+    
+    # Robust Stage 3 Trigger (Refinement 2): Purulent count >= 2, or purulent peak >= 0.50, or papular + purulent mix, AND not Cystic dominant
+    has_purulent_activity = (purulent_count >= 2) or (purulent_peak_conf >= 0.50) or (papular_count >= 1 and purulent_count >= 1)
+    is_stage_3 = has_purulent_activity and (not is_cystic_dominant)
+    
+    # Stage 2 Trigger: Papular dominant or Cystic/Purulent fallback
+    is_stage_2 = (not is_cystic_dominant) and (not is_stage_3) and (top_cls in [2, 4] or (top_cls == 3 and not is_stage_3))
+    
+    # Stage 1 Trigger: Comedonal dominant or only comedonal present
+    is_stage_1 = (not is_cystic_dominant) and (not is_stage_3) and (not is_stage_2)
+    
+    if is_cystic_dominant:
+        severity_label = "Stage 4"
+        severity_reason = "Advanced inflammatory acne characteristics may be present with deep structural lesion activity."
+        patient_wording = "Advanced inflammatory acne characteristics may be present."
+    elif is_stage_3:
+        severity_label = "Stage 3"
+        severity_reason = "Active inflammatory acne patterns with visible purulent or pustular lesions."
+        patient_wording = "Active inflammatory acne patterns may be present."
+    elif is_stage_2:
+        severity_label = "Stage 2"
+        severity_reason = "Mild to moderate inflammatory acne characterized by reddish papular bumps."
+        patient_wording = "Mild inflammatory acne characteristics may be observed."
+    else:
+        severity_label = "Stage 1"
+        severity_reason = "Non-inflammatory comedonal pattern consisting of pore congestion, blackheads, or whiteheads."
+        patient_wording = "Comedonal acne characteristics may be present."
         
-    # 2. Diet Increase/Reduce Catalog
-    DIET_CATALOG = {
-        0: { # Blackhead
-            "increase": ["Zinc-rich seeds", "Hydrating greens"],
-            "reduce": ["Highly processed oily foods", "Excess dairy"]
+    # Determine secondary pattern detail (incorporating Mixed Pattern Refinement 3 and Phase 13B Hybrids)
+    if is_mixed_pattern:
+        is_top_inflammatory = (top_cls >= 2)
+        is_sec_inflammatory = (sec_cls >= 2) if sec_cls is not None else False
+        
+        if is_top_inflammatory and is_sec_inflammatory:
+            secondary_wording = "Mixed inflammatory characteristics observed."
+        elif (not is_top_inflammatory) and (not is_sec_inflammatory):
+            secondary_wording = "Mixed comedonal characteristics observed."
+        else:
+            secondary_wording = "Mixed comedonal and inflammatory characteristics observed."
+    else:
+        if severity_label == "Stage 1" and (class_counts[0] > 0 and class_counts[1] > 0):
+            secondary_wording = "oil congestion pattern."
+        elif severity_label == "Stage 3" and (papular_count > 0 and purulent_count > 0):
+            secondary_wording = "papular inflammation observed."
+        elif severity_label == "Stage 4" and purulent_count > 0:
+            secondary_wording = "soft consultation recommendation."
+        else:
+            secondary_wording = f"secondary {CLASS_NAMES[sec_cls].lower()} characteristics present." if sec_cls is not None else ""
+            
+    possible_patterns = [f"{pattern_prefix} {patient_wording}"]
+    if secondary_wording:
+        possible_patterns.append(f"Secondary: {secondary_wording}")
+        
+    # ----------------------------------------------------
+    # REFINEMENT 6 — NUTRITION DATABASE AND DYNAMIC ENGINE
+    # ----------------------------------------------------
+    NUTRITION_DATABASE = {
+        "Stage 1": {
+            "nutrients": ["Zinc", "Omega-3", "Vitamin A", "Linoleic Acid", "Hydration factors"],
+            "eat_more": ["consider increasing pumpkin seeds", "consider increasing walnuts", "consider increasing leafy greens", "consider increasing water-rich fruits like cucumber"],
+            "reduce": ["excessive refined sugar", "high-glycemic processed snacks", "excessive dairy products"]
         },
-        1: { # Whitehead
-            "increase": ["Hydrating mineral water", "Antioxidant fruits"],
-            "reduce": ["Deep-fried processed fast food"]
+        "Stage 2": {
+            "nutrients": ["Omega-3 fatty acids", "Zinc", "Vitamin C", "Antioxidants", "Green tea catechins"],
+            "eat_more": ["consider increasing berries", "consider increasing spinach", "consider increasing turmeric-infused meals", "consider increasing flaxseeds", "consider increasing green tea"],
+            "reduce": ["excessive highly spicy processed foods", "refined sugars", "oily fast foods"]
         },
-        2: { # Papular
-            "increase": ["Antioxidant-rich berries", "Omega-3 fatty acids"],
-            "reduce": ["Refined sugars", "High-glycemic dairy"]
+        "Stage 3": {
+            "nutrients": ["Zinc", "Probiotics", "Vitamin E", "Omega-3", "Selenium"],
+            "eat_more": ["consider increasing fermented foods like yogurt or kefir", "consider increasing almonds", "consider increasing avocados", "consider increasing rich leafy vegetables"],
+            "reduce": ["refined white flour", "sugary desserts", "excessive greasy fried foods"]
         },
-        3: { # Purulent
-            "increase": ["Green tea", "Turmeric/Anti-inflammatory spices"],
-            "reduce": ["High-glycemic index foods", "Refined sugars"]
-        },
-        4: { # Cystic
-            "increase": ["Omega-3 fatty acids", "Antioxidants", "Leafy green vegetables"],
-            "reduce": ["Refined sugars", "Dairy whey protein", "Highly processed foods"]
+        "Stage 4": {
+            "nutrients": ["Zinc", "Omega-3", "Vitamin D3", "Vitamin A", "Anti-inflammatory bioactives"],
+            "eat_more": ["consider increasing lean plant-based proteins", "consider increasing zinc-rich seeds", "consider increasing healthy fats like olive oil", "consider increasing cruciferous vegetables like broccoli"],
+            "reduce": ["whey protein isolates", "high-glycemic index foods", "excessive dairy products"]
         }
     }
     
-    increase_diet = list(dict.fromkeys(DIET_CATALOG[top_cls]["increase"] + (DIET_CATALOG[sec_cls]["increase"] if sec_cls is not None else [])))
-    reduce_diet = list(dict.fromkeys(DIET_CATALOG[top_cls]["reduce"] + (DIET_CATALOG[sec_cls]["reduce"] if sec_cls is not None else [])))
+    nutrients = NUTRITION_DATABASE[severity_label]["nutrients"]
+    eat_more = NUTRITION_DATABASE[severity_label]["eat_more"]
+    reduce_list = NUTRITION_DATABASE[severity_label]["reduce"]
     
-    # 3. Skincare Wording Focus
+    # ----------------------------------------------------
+    # SMART GUIDANCE & SKINCARE ENGINE
+    # ----------------------------------------------------
     SKINCARE_CATALOG = {
-        0: "Recommend standard salicylic-friendly gentle skincare to dissolve sebum and clear pores.",
-        1: "Focus on gentle skin renewal cleansers. Hydrate to support clear pore structure.",
-        2: "Use gentle, non-comedogenic anti-inflammatory cleansers. Avoid physical face scrubs.",
-        3: "Use mild, anti-inflammatory barrier cleansers. Avoid active scrub ingredients or peeling agents.",
-        4: "Focus strictly on skin barrier protection with ultra-mild hydrating cleansers. Avoid physical face scrubs."
+        "Stage 1": "Patterns may benefit from oil-balancing and gentle pore exfoliating routines, prioritizing hydration.",
+        "Stage 2": "Patterns could respond well to soothing, non-comedogenic cleansers that protect the skin barrier and reduce friction.",
+        "Stage 3": "Patterns could respond well to mild anti-inflammatory cleansers and barrier-repair creams, avoiding any physical scrubs.",
+        "Stage 4": "Patterns may benefit from deeply soothing skin barrier protection using ultra-mild hydrating cleansers and avoiding active picking."
     }
-    skincare_focus = SKINCARE_CATALOG[top_cls]
-
-    # ----------------------------------------------------
-    # PATCH 4 — DETECTION WORDING CALIBRATION
-    # ----------------------------------------------------
-    step_3_bullets = ["Pattern analysis suggests:"]
-    for cls_id, count, peak_conf in active_classes:
-        if peak_conf >= 0.60:
-            step_3_bullets.append(f"• Predominantly {CLASS_NAMES[cls_id]} characteristics")
-        elif peak_conf >= 0.35:
-            step_3_bullets.append(f"• Mild {CLASS_NAMES[cls_id]} characteristics")
-        else:
-            step_3_bullets.append(f"• Possible {CLASS_NAMES[cls_id]} tendency")
-            
-    # ----------------------------------------------------
-    # PATCH 5 & 8D — CONSULTATION TRIAGE (Soften trigger)
-    # ----------------------------------------------------
-    avg_cystic_conf = np.mean(class_confidences[4]) if len(class_confidences[4]) > 0 else 0.0
-    is_cystic_heavy = (class_counts[4] >= 2 and avg_cystic_conf > 0.45)
-    is_purulent_heavy = (class_counts[3] + class_counts[4] > 5)
     
-    if severity_label == "Severe" or is_cystic_heavy or is_purulent_heavy:
+    GUIDANCE_FOCUS = {
+        "Stage 1": ["pore congestion management", "oil balance support", "gentle exfoliation", "optimal hydration"],
+        "Stage 2": ["mild inflammatory control", "skin barrier protection", "gentle soothing skincare", "minimizing skin friction"],
+        "Stage 3": ["active inflammation calming", "microbial balance support", "barrier repair care", "sanitizing pillowcases/screens"],
+        "Stage 4": ["highly soothing barrier creams", "avoiding hot water face washes", "non-irritating hydration", "deep skin barrier protection"]
+    }
+    
+    step_4_bullets = ["General wellness focus:"]
+    for item in GUIDANCE_FOCUS[severity_label]:
+        step_4_bullets.append(f"• {item}")
+        
+    nutrition_label = f"Clinical Staging: {severity_label} Wellness"
+    nutrition_focus = [nutrition_label, f"Focus: {GUIDANCE_FOCUS[severity_label][0].capitalize()}"]
+    if secondary_wording:
+        nutrition_focus.append(f"Secondary: {secondary_wording.capitalize()}")
+        
+    skincare_focus = SKINCARE_CATALOG[severity_label]
+    
+    # Format Step 3 Wording for UI
+    step_3_bullets = [pattern_prefix]
+    step_3_bullets.append(f"• {patient_wording}")
+    if secondary_wording:
+        step_3_bullets.append(f"• Secondary: {secondary_wording}")
+        
+    # ----------------------------------------------------
+    # CONSULTATION TRIAGE
+    # ----------------------------------------------------
+    if severity_label == "Stage 4":
         consultation_level = "Professional Consultation Recommended"
-        consultation_wording = "A professional consultation with a certified dermatologist is recommended for a personalized treatment plan."
-    elif severity_label == "Moderate":
+        triage_wording = "Professional dermatology consultation could be beneficial for deep cystic concerns."
+    elif severity_label == "Stage 3":
+        consultation_level = "Professional Consultation Recommended"
+        triage_wording = "Professional dermatology consultation could be beneficial for active inflammatory lesions."
+    elif severity_label == "Stage 2":
         consultation_level = "Monitor + Routine Skincare"
-        consultation_wording = "Routine skincare and weekly skin progression tracking is recommended."
+        triage_wording = "Consider standard routine adjustments and professional consultation if inflammatory patterns persist."
     else:
         consultation_level = "Self-Care Guidance"
-        consultation_wording = "Standard self-care skincare guidelines are appropriate for this skin pattern."
+        triage_wording = "Monitor skin progression weekly and support with gentle comedonal skincare."
         
     step_5_bullets = [
-        "• Monitor weekly.",
-        "• Consider professional consultation if inflammation persists."
+        f"• {triage_wording}",
+        "• This wellness guidance is educational and should not replace professional dermatological consultation."
     ]
-        
+    
     # Output structure
     output_json = {
         "acne_detected": True,
@@ -353,24 +404,26 @@ def process_clinical_inference(detections):
         "wellness_guidance": {
             "nutrition_focus": nutrition_focus,
             "diet_guidance": {
-                "increase": increase_diet,
-                "reduce": reduce_diet
+                "increase": eat_more,
+                "reduce": reduce_list
             },
             "skincare_focus": skincare_focus
         },
+        "nutrition_nutrients": nutrients,
+        "nutrition_eat_more": eat_more,
+        "nutrition_reduce": reduce_list,
         "triage_recommendation": {
             "consultation_level": consultation_level,
-            "wording": consultation_wording
+            "wording": triage_wording
         },
         "user_facing_flow": {
-            "step_1_detection": "Acne detected",
+            "step_1_detection": "Acne characteristics observed",
             "step_2_severity": severity_label,
             "step_3_pattern_analysis": step_3_bullets,
             "step_4_skin_guidance": step_4_bullets,
             "step_5_consultation": step_5_bullets
         }
     }
-    
     return output_json
 
 def main():

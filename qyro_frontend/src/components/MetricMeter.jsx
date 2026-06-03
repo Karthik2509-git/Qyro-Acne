@@ -1,22 +1,36 @@
 import React from 'react';
 
 export default function MetricMeter({ severity, score }) {
-  // Calibrate score max for percentage calculation (0 to 24 baseline)
-  const scoreMax = 24.0;
-  const percentage = Math.min(100, Math.max(0, (score / scoreMax) * 100));
+  const sevLower = severity ? severity.toLowerCase() : '';
+
+  // Snapped percentages for clean visual presentation across the 5 client stages
+  let percentage = 10;
+  if (sevLower.includes('stage 1') || sevLower === 'stage 1') {
+    percentage = 32.5;
+  } else if (sevLower.includes('stage 2') || sevLower === 'stage 2') {
+    percentage = 55;
+  } else if (sevLower.includes('stage 3') || sevLower === 'stage 3') {
+    percentage = 77.5;
+  } else if (sevLower.includes('stage 4') || sevLower === 'stage 4') {
+    percentage = 100;
+  } else if (sevLower.includes('minimal') || sevLower.includes('stage 0') || sevLower === 'stage 0') {
+    percentage = 10;
+  } else {
+    // Score based fallback
+    percentage = Math.min(100, Math.max(0, (score / 24.0) * 100));
+  }
 
   const getSeverityStyle = () => {
-    switch (severity.toLowerCase()) {
-      case 'minimal':
-        return { color: 'text-emerald-500', bg: 'bg-emerald-500', border: 'border-emerald-500' };
-      case 'mild':
-        return { color: 'text-cyan-500', bg: 'bg-cyan-500', border: 'border-cyan-500' };
-      case 'moderate':
-        return { color: 'text-brand-indigo', bg: 'bg-brand-indigo', border: 'border-brand-indigo' };
-      case 'severe':
-        return { color: 'text-indigo-950', bg: 'bg-indigo-950', border: 'border-indigo-950' };
-      default:
-        return { color: 'text-brand-indigo', bg: 'bg-brand-indigo', border: 'border-brand-indigo' };
+    if (sevLower.includes('stage 1') || sevLower === 'stage 1') {
+      return { color: 'text-cyan-500', bg: 'bg-cyan-500', border: 'border-cyan-500' };
+    } else if (sevLower.includes('stage 2') || sevLower === 'stage 2') {
+      return { color: 'text-sky-500', bg: 'bg-sky-500', border: 'border-sky-500' };
+    } else if (sevLower.includes('stage 3') || sevLower === 'stage 3') {
+      return { color: 'text-brand-indigo', bg: 'bg-brand-indigo', border: 'border-brand-indigo' };
+    } else if (sevLower.includes('stage 4') || sevLower === 'stage 4') {
+      return { color: 'text-purple-600', bg: 'bg-purple-600', border: 'border-purple-600' };
+    } else {
+      return { color: 'text-emerald-500', bg: 'bg-emerald-500', border: 'border-emerald-500' };
     }
   };
 
@@ -41,12 +55,14 @@ export default function MetricMeter({ severity, score }) {
       </div>
       
       {/* Label anchors */}
-      <div className="flex justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-1">
-        <span className={severity.toLowerCase() === 'minimal' ? 'text-emerald-500 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Minimal</span>
-        <span className={severity.toLowerCase() === 'mild' ? 'text-cyan-500 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Mild</span>
-        <span className={severity.toLowerCase() === 'moderate' ? 'text-brand-indigo font-bold scale-[1.05]' : 'scale-90 transition-all'}>Moderate</span>
-        <span className={severity.toLowerCase() === 'severe' ? 'text-indigo-950 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Severe</span>
+      <div className="flex justify-between text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-1">
+        <span className={sevLower.includes('minimal') || sevLower.includes('0') ? 'text-emerald-500 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Stage 0</span>
+        <span className={sevLower.includes('1') ? 'text-cyan-500 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Stage 1</span>
+        <span className={sevLower.includes('2') ? 'text-sky-500 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Stage 2</span>
+        <span className={sevLower.includes('3') ? 'text-brand-indigo font-bold scale-[1.05]' : 'scale-90 transition-all'}>Stage 3</span>
+        <span className={sevLower.includes('4') ? 'text-purple-600 font-bold scale-[1.05]' : 'scale-90 transition-all'}>Stage 4</span>
       </div>
     </div>
   );
 }
+

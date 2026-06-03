@@ -16,7 +16,7 @@
 
 /* Reusable Design System Classes (Calibration 1 & 7) */
 .premium-card {
-  @apply bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5;
+  @apply bg-white/80 backdrop-blur-lg border border-slate-200/50 rounded-3xl shadow-md hover:shadow-xl hover:shadow-brand-indigo/5 transition-all duration-300 transform hover:-translate-y-0.5;
 }
 
 .dropzone-container {
