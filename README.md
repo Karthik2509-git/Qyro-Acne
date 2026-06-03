@@ -1,6 +1,9 @@
-# Qyro-Acne: Clinical-Grade AI Acne Detection & Wellness Guidance
+# Qyro-Acne: Experimental AI-Assisted Acne Subtype Detection
 
-Qyro-Acne is an advanced AI-powered skin assessment and wellness platform that combines object detection with a dermatologist-aligned clinical reasoning layer. Designed to bridge the gap between machine learning telemetry and actionable clinical guidance, the system detects acne lesions, classifies them into clinical severity stages (Stage 0 to 4), and dynamically generates personalized skincare, nutrition, and telehealth triage recommendations.
+**Experimental AI-assisted acne subtype detection prototype for dermatology workflows.**
+
+Developed as an early-stage research MVP exploring acne lesion detection, stage inference, and clinical guidance using computer vision and hybrid reasoning.
+
 
 ---
 
